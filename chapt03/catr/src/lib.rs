@@ -15,11 +15,15 @@ pub struct Config {
 }
 
 pub fn run(config: Config) -> MyResult<()> {
+    // platform: linux
     let mut last_num = 0; // fix line numbers for multiple files 
     for filename in config.files {
         match open(&filename) {
             Err(err) => eprintln!("Failed to open {}: {}", filename, err),
             Ok(file) => {
+                // platform: mac, bsd 
+                //let mut last_num = 0;  
+
                 let lines_iter = file.lines().map(|l| l.unwrap());
                 for (_number, line) in lines_iter.enumerate() {
                     if config.number_lines {
