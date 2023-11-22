@@ -1,6 +1,6 @@
 use clap::{App, Arg};
 use std::error::Error;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Read};
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
@@ -8,8 +8,8 @@ type MyResult<T> = Result<T, Box<dyn Error>>;
 #[derive(Debug)]
 pub struct Config {
     files: Vec<String>,
-    lines: usize,
-    bytes: Option<usize>,
+    lines: i64,//usize,
+    bytes: Option<i64>,//Option<usize>,
 }
 
 pub fn get_args() -> MyResult<Config> {
@@ -64,10 +64,24 @@ pub fn get_args() -> MyResult<Config> {
 }
 
 
-fn parse_positive_int(val: &str) -> MyResult<usize> {
-    match val.parse() {
-        Ok(n) if n > 0 => Ok(n),
-        _ => Err(From::from(val)),//Err(val.into()) or Err(Into::into(val)),
+fn parse_positive_int(val: &str) -> MyResult<i64> {
+    match val.parse::<i64>() {
+        Ok(n) if n != 0 => Ok(n),
+        _ => {
+            //TODO: get last char
+            let len = val.len();
+            let Some(first) = val.get(..len-1);
+            let Some(last) = val.get(len-1..);
+            match first.parse::<i64>() {
+                Ok(mut n) if n != 0 => {
+                    if last == "K" {
+                        n *= 1024;
+                    }
+                    Ok(n)
+                }
+                _ => Err(From::from(val)),//Err(val.into()) or Err(Into::into(val)),
+            }
+        }
 
     }
 }
@@ -78,6 +92,7 @@ fn test_parse_positive_int() {
     let res = parse_positive_int("3");
     assert!(res.is_ok());
     assert_eq!(res.unwrap(), 3);
+
 
     // Any string is an error
     let res = parse_positive_int("foo");
@@ -90,6 +105,31 @@ fn test_parse_positive_int() {
     assert_eq!(res.unwrap_err().to_string(), "0".to_string());
 
 }
+
+#[test]
+fn test_parse_int() {
+    // 3 is an OK integer
+    let res = parse_positive_int("3");
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap(), 3);
+
+    let res = parse_positive_int("-3");
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap(), -3);
+
+
+    // Any string is an error
+    let res = parse_positive_int("foo");
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().to_string(), "foo".to_string());
+
+    // A zero is an error
+    let res = parse_positive_int("0");
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().to_string(), "0".to_string());
+
+}
+
 
 fn open(filename: &str) -> MyResult<Box<dyn BufRead>> {
     match filename {
@@ -104,7 +144,7 @@ pub fn run(config: Config) -> MyResult<()> {
     for (file_num, filename) in config.files.iter().enumerate() {
         match open(&filename) {
             Err(err) => eprintln!("{}: {}", filename, err),
-            Ok(mut file) => {
+            Ok(file) => {
                 if num_files > 1 {
                     println!(
                         "{}==> {} <==",
@@ -114,9 +154,18 @@ pub fn run(config: Config) -> MyResult<()> {
 
                 }
 
-                if let Some(num_bytes) = config.bytes {
+                if let Some(mut num_bytes) = config.bytes {
                     // read num bytes
-                    let mut buffer = vec![0; num_bytes];
+                    let filelen = fs::metadata(&filename)?.len() as i64;
+                    if num_bytes < 0 {
+                        let t_bytes = filelen + num_bytes; 
+                        if t_bytes <= 0  {
+                            break;
+                        } else {
+                            num_bytes = t_bytes;
+                        }
+                    } 
+                    let mut buffer = vec![0; num_bytes as usize];
                     // Use take to read the requested number of bytes
                     let mut handle = file.take(num_bytes as u64);
                     let bytes_read = handle.read(&mut buffer)?;
@@ -127,15 +176,21 @@ pub fn run(config: Config) -> MyResult<()> {
                 } else {
                     // read n lines
                     let mut line = String::new();
-                    for _ in 0..config.lines {
-                        let bytes = file.read_line(&mut line)?;
+                    let readlines = file.lines();
+                    let totalines = readlines.count() as i64;
+                    let mut endline = config.lines;
+                    if endline < 0 {
+                        endline = totalines + endline; 
+                    }
+                    let mut readfile = open(&filename).unwrap();
+                    for _ in 0..endline {
+                        let bytes = readfile.read_line(&mut line)?;
                         if bytes == 0 {
                             break;
                         }
                         print!("{}", line);
                         line.clear();
                     } 
-
                 } 
                 
             }
