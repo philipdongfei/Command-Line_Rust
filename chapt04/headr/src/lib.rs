@@ -69,14 +69,13 @@ fn parse_positive_int(val: &str) -> MyResult<i64> {
         Ok(n) if n != 0 => Ok(n),
         _ => {
             //TODO: get last char
-            let len = val.len();
-            let Some(first) = val.get(..len-1);
-            let Some(last) = val.get(len-1..);
+            //let count = val.chars().count();
+            //let mut chars = val.chars();
+            let v: Vec<&str> = val.split(|c| c == 'k' || c == 'K').collect();
+            let first = v[0];
             match first.parse::<i64>() {
                 Ok(mut n) if n != 0 => {
-                    if last == "K" {
-                        n *= 1024;
-                    }
+                    n *= 1024;
                     Ok(n)
                 }
                 _ => Err(From::from(val)),//Err(val.into()) or Err(Into::into(val)),
@@ -117,6 +116,13 @@ fn test_parse_int() {
     assert!(res.is_ok());
     assert_eq!(res.unwrap(), -3);
 
+    let res = parse_positive_int("3K");
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap(), 3*1024);
+
+    let res = parse_positive_int("10K");
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap(), 10*1024);
 
     // Any string is an error
     let res = parse_positive_int("foo");
