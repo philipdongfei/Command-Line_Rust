@@ -12,6 +12,7 @@ pub struct Config {
     words: bool,
     bytes: bool,
     chars: bool,
+    max_line: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -20,6 +21,7 @@ pub struct FileInfo {
     num_words: usize,
     num_bytes: usize,
     num_chars: usize,
+    max_line_len:  usize,
 }
 
 
@@ -66,14 +68,22 @@ pub fn get_args() -> MyResult<Config> {
                 .help("Show line count")
                 .takes_value(false),
         )
+        .arg(
+            Arg::with_name("max-line-length")
+                .short("L")
+                .long("max-line-length")
+                .help("print the maximum display width")
+                .takes_value(false),
+        )
         .get_matches();
 
     let mut lines = matches.is_present("lines");
     let mut words = matches.is_present("words");
     let mut bytes = matches.is_present("bytes");
     let chars = matches.is_present("chars");
+    let max_line = matches.is_present("max-line-length");
 
-    if [words, bytes, chars, lines].iter().all(|v| v == &false) {
+    if [words, bytes, chars, lines, max_line].iter().all(|v| v == &false) {
         lines = true;
         words = true;
         bytes = true;
@@ -85,6 +95,8 @@ pub fn get_args() -> MyResult<Config> {
         words,
         bytes,
         chars,
+        max_line,
+
     })
 }
 
@@ -101,6 +113,7 @@ pub fn run(config: Config) -> MyResult<()> {
     let mut total_words = 0;
     let mut total_bytes = 0;
     let mut total_chars = 0;
+    let mut total_max_line = 0;
     
     for filename in &config.files {
         match open(filename) {
@@ -114,6 +127,9 @@ pub fn run(config: Config) -> MyResult<()> {
                         total_words += fileinfo.num_words;
                         total_bytes += fileinfo.num_bytes;
                         total_chars += fileinfo.num_chars;
+                        if total_max_line < fileinfo.max_line_len {
+                            total_max_line = fileinfo.max_line_len;
+                        }
                     }
                 } 
             }
@@ -126,6 +142,7 @@ pub fn run(config: Config) -> MyResult<()> {
             num_words: total_words,
             num_bytes: total_bytes,
             num_chars: total_chars,
+            max_line_len: total_max_line,
 
         };
         let totalname = "total";
@@ -152,6 +169,9 @@ pub fn print_fields(config: &Config, fileinfo: &FileInfo, filename: &str) {
     if config.chars {
         print!("{:>8}", fileinfo.num_chars);
     }
+    if config.max_line{
+        print!("{:>8}", fileinfo.max_line_len);
+    }
     if filename != "-" {
         println!(" {}", filename);
     } else {
@@ -165,6 +185,7 @@ pub fn count(mut file: impl BufRead) -> MyResult<FileInfo> {
     let mut num_words = 0;
     let mut num_bytes = 0;
     let mut num_chars = 0;
+    let mut max_line_len = 0;
     let mut buffer = String::new();
 
     loop {
@@ -176,6 +197,10 @@ pub fn count(mut file: impl BufRead) -> MyResult<FileInfo> {
         num_lines += 1;
         num_words += buffer.split_whitespace().count();
         num_chars += buffer.chars().count();
+        //TODO: count max line length
+        if max_line_len < buffer.chars().count() {
+            max_line_len = buffer.chars().count();
+        }
         buffer.clear(); 
     }
 
@@ -184,12 +209,21 @@ pub fn count(mut file: impl BufRead) -> MyResult<FileInfo> {
         num_words,
         num_bytes,
         num_chars,
+        max_line_len,
     })
+}
+
+fn format_field(value: usize, show: bool) -> String {
+    if show {
+        format!("{:>8}", value)
+    } else {
+        "".to_string()
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{count, FileInfo};
+    use super::{count, format_field, FileInfo};
     use std::io::Cursor;
 
     #[test]
@@ -205,4 +239,12 @@ mod tests {
         };
         assert_eq!(info.unwrap(), expected);
     }
+
+    #[test]
+    fn test_format_field() {
+        assert_eq!(format_field(1, false), "");
+        assert_eq!(format_field(3, true), "       3");
+        assert_eq!(format_field(10, true), "      10");
+    }
 }
+
