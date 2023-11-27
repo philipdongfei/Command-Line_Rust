@@ -13,6 +13,7 @@ pub struct Config {
     bytes: bool,
     chars: bool,
     max_line: bool,
+    file0: String, // TODO: 
 }
 
 #[derive(Debug, PartialEq)]
@@ -68,12 +69,20 @@ pub fn get_args() -> MyResult<Config> {
                 .help("Show line count")
                 .takes_value(false),
         )
+        // TODO:
         .arg(
             Arg::with_name("max-line-length")
                 .short("L")
                 .long("max-line-length")
                 .help("print the maximum display width")
                 .takes_value(false),
+        )
+        // TODO:
+        .arg(
+            Arg::with_name("files0")
+                .long("files0-from")
+                .help("read input from the files specified by\nNUL-terminated names in file F;\nIf F is - then read names from standard input"),
+                
         )
         .get_matches();
 
@@ -89,6 +98,8 @@ pub fn get_args() -> MyResult<Config> {
         bytes = true;
     }
 
+    let file0 = matches.value_of("file0").unwrap();
+
     Ok(Config {
         files: matches.values_of_lossy("files").unwrap(), 
         lines, 
@@ -96,7 +107,7 @@ pub fn get_args() -> MyResult<Config> {
         bytes,
         chars,
         max_line,
-
+        file0: file0.to_string(), 
     })
 }
 
