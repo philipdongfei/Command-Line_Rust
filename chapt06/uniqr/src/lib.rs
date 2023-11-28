@@ -1,9 +1,8 @@
 use clap::{App, Arg};
 use std::{
     error::Error,
-    fs::{File, OpenOptions},
+    fs::{File },
     io::{self, BufRead, BufReader, Write },
-    path::{Path},
 };
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
@@ -69,7 +68,7 @@ pub fn run(config: Config) -> MyResult<()> {
         if bytes == 0 {
             break;
         }
-        if vec_lines.is_empty() || vec_lines.last().map(|l| l.uline.eq(&line)) == Some(false) {
+        if vec_lines.is_empty() || vec_lines.last().map(|l| l.uline.trim_end().eq(line.trim_end())) == Some(false) {
             vec_lines.push(UniqLine {
                 uline: line.clone(),
                 nums: 1,
