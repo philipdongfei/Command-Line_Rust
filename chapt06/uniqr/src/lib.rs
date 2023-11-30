@@ -14,10 +14,6 @@ pub struct Config {
     count: bool,
 }
 
-pub struct UniqLine {
-    uline: String,
-    nums: u32,
-}
 
 pub fn get_args() -> MyResult<Config> {
     let matches = App::new("uniqr")
@@ -58,58 +54,100 @@ pub fn get_args() -> MyResult<Config> {
     })
 }
 
-pub fn run(config: Config) -> MyResult<()> {
+pub fn my_run(config: Config) -> MyResult<()> {
+    let mut out_file: Box<dyn Write> = Box::new(io::stdout());
+    if let Some(ref path)= config.out_file {
+        if !path.is_empty()  {
+            out_file = Box::new(File::create(path)?);
+            
+        } 
+    }
+    
+    let mut print = |count: u64, text: &str| -> MyResult<()> {
+        if count > 0 {
+            let line ;//= String::new();
+            if config.count {
+                line = format!("{:>4} {}", count, text);
+            } else {
+                line = format!("{}", text);
+            }  
+
+            out_file.write(line.as_bytes())?;
+        }
+        Ok(())
+    };
+
     let mut file = open(&config.in_file)
         .map_err(|e| format!("{}: {}", config.in_file, e))?;
     let mut line = String::new();
-    let mut vec_lines: Vec<UniqLine> = Vec::new();
+    let mut previous = String::new();
+    //let mut vec_lines: Vec<UniqLine> = Vec::new();
+    let mut count = 0;
     loop {
         let bytes = file.read_line(&mut line)?;
         if bytes == 0 {
             break;
         }
-        if vec_lines.is_empty() || vec_lines.last().map(|l| l.uline.trim_end().eq(line.trim_end())) == Some(false) {
-            vec_lines.push(UniqLine {
-                uline: line.clone(),
-                nums: 1,
-            });
-        } else {
-            vec_lines.last_mut().map(|l| l.nums += 1);
-        } 
-        line.clear();
-    }
-    line.clear(); 
-    let mut out_file: Box<dyn Write> = Box::new(io::stdout());
-    if let Some(ref path)= config.out_file {
-        if !path.is_empty()  {
-            out_file = Box::new(File::create(path)?);//OpenOptions::new().write(true).truncate(true).open(path)?;//File::create(path)?;
-            //println!("write one");
+        if previous.is_empty() || !previous.trim_end().eq(line.trim_end()){
+            if count > 0 {
+                print(count, &previous)?;
+                previous = line.clone();
+                count = 0;
+            } 
             
         } 
-        /*
-        else {
-            out_file = Box::new(io::stdout());
-            //out_file.write(line.as_bytes())?;
-        }
-        */
+        count += 1;
+        line.clear();
     }
+    print(count, &previous)?;
 
-    for uniq_line in vec_lines.iter() {
-        if config.count {
-            line = format!("{:>4} {}", uniq_line.nums, uniq_line.uline);
-        } else {
-            line = format!("{}", uniq_line.uline);
-        }  
-        if config.out_file == None {
-            print!("{}", line);
-        } else {
-            //let mut out_file: Box<dyn Write>;
-            out_file.write(line.as_bytes())?;
-            line.clear();
-        }
-    } 
     Ok(())
 }
+
+pub fn run(config: Config) -> MyResult<()> {
+    let mut file = open(&config.in_file)
+        .map_err(|e| format!("{}: {}", config.in_file, e))?;
+
+    let mut out_file: Box<dyn Write> = match &config.out_file {
+        Some(out_name) => Box::new(File::create(out_name)?),
+        _ => Box::new(io::stdout()),
+    };
+
+    let mut print = |count: u64, text: &str| -> MyResult<()> {
+        if count > 0 {
+            if config.count {
+                write!(out_file, "{:>4} {}", count, text)?;
+            } else {
+                write!(out_file, "{}", text)?;
+            }
+        };
+        Ok(())
+    };
+
+    let mut line = String::new();
+    let mut previous = String::new();
+    let mut count: u64 = 0;
+
+    loop {
+        let bytes = file.read_line(&mut line)?;
+        if bytes == 0 {
+            break;
+        }
+
+        if line.trim_end() != previous.trim_end() {
+            print(count, &previous)?;
+            previous = line.clone();
+            count = 0;
+        }
+
+        count += 1;
+        line.clear();
+    }
+
+    print(count, &previous)?;
+    Ok(())
+}
+
 
 fn open(filename: &str) -> MyResult<Box<dyn BufRead>> {
     match filename {
