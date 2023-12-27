@@ -30,18 +30,16 @@ struct Args {
     flag_quiet: bool,
 }
 
+/*
 // This struct represents the data in each row of the CSV file.
 // Type based decoding absolves us of a lot of the nitty gritty error
 // handling, like parsing strings as integers or floats.
-#[derive(Debug, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 struct Row {
-    #[serde(rename = "Country")]
     country: String,
-    #[serde(rename = "City")]
     city: String,
-    #[serde(rename = "AccentCity")]
     accent_city: String,
-    #[serde(rename = "Region")]
     region: String,
 
     // Not every row has data for the population, latitude or longitude!
@@ -49,12 +47,22 @@ struct Row {
     // absence. The CSV parse will fill in the correct value for us.
     //#[serde(deserialize_with = "deserialize_null_default")]
     //#[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename = "Populatioin")]
     population: Option<u64>,
-    #[serde(rename = "Latitude")]
-    latitude: Option<u64>,
-    #[serde(rename = "Longitude")]
-    longitude: Option<u64>,
+    latitude: Option<f64>,
+    longitude: Option<f64>,
+}
+*/
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct Row {
+    country: String,
+    city: String,
+    accent_city: String,
+    region: String,
+    population: Option<u64>,
+    latitude: Option<f64>,
+    longitude: Option<f64>,
 }
 
 struct PopulationCount {
@@ -65,6 +73,7 @@ struct PopulationCount {
     count: u64,
 }
 
+/*
 enum CliError {
     Io(io::Error),
     Csv(csv::Error),
@@ -72,7 +81,7 @@ enum CliError {
 }
 
 impl fmt::Display for CliError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut self.fmt::Formatter) -> self.fmt::Result {
         match *self {
             CliError::Io(ref err) => err.fmt(f),
             CliError::Csv(ref err) => err.fmt(f),
@@ -98,14 +107,16 @@ impl From<io::Error> for CliError {
     }
 }
 
+
 impl From<csv::Error> for CliError {
     fn from(err: csv::Error) -> CliError {
         CliError::Csv(err)
     }
 }
+*/
 
 
-fn search<P: AsRef<std::path::Path> + std::convert::AsRef<std::path::Path>>(file_path: &Option<P>, city: &str) -> Result<Vec<PopulationCount>,CliError/*Box<dyn Error+Send+Sync>*/> {
+fn search<P: AsRef<std::path::Path> + std::convert::AsRef<std::path::Path>>(file_path: &Option<P>, city: &str) -> Result<Vec<PopulationCount>,/*CliError*/Box<dyn Error+Send+Sync>> {
     let mut found = vec![];
     let input: Box<dyn io::Read> = match *file_path {
         None => Box::new(io::stdin()),
@@ -126,8 +137,8 @@ fn search<P: AsRef<std::path::Path> + std::convert::AsRef<std::path::Path>>(file
         }
     }
     if found.is_empty() {
-        Err(CliError::NotFound)
-        //Err(From::from("No matching cities with a population were found."))
+        //Err(CliError::NotFound)
+        Err(From::from("No matching cities with a population were found."))
     } else {
         Ok(found)
     }
@@ -177,6 +188,7 @@ fn main() {
     let args: Args = Docopt::new(USAGE)
         .and_then(|dopt| dopt.argv(env::args().into_iter()).deserialize())
         .unwrap_or_else(|err| err.exit());
+    /*
     match search(&args.arg_data_path, &args.arg_city) {
         Err(CliError::NotFound) if args.flag_quiet => process::exit(1),
         Err(err) => fatal!("{}", err),
@@ -184,11 +196,11 @@ fn main() {
             println!("{}, {}: {:?}", pop.city, pop.country, pop.count);
         }
     }
-    /*
+    */
+    println!("{:?},{}", &args.arg_data_path, &args.arg_city);
     for pop in search(&args.arg_data_path, &args.arg_city).unwrap() {
         println!("{}, {}: {:?}", pop.city, pop.country, pop.count);
     }
-    */
     /*
     let file = fs::File::open(args.arg_data_path).unwrap();
     let mut rdr = csv::Reader::from_reader(file);

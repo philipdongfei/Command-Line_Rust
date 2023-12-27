@@ -13,4 +13,4 @@ name = "city-pop"
 csv = "1.0"
 docopt = "1.0"
 rustc-serialize = "0.3"
-serde = "1.0"
+serde = { version = "1", features = ["derive"] }
