@@ -8,6 +8,7 @@ use std::{
     num::NonZeroUsize,
     ops::Range
 };
+use csv::{ ReaderBuilder, StringRecord };
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 type PositionList = Vec<Range<usize>>;
@@ -26,6 +27,21 @@ pub struct Config {
     delimiter: u8,
     extract: Extract,
 }
+
+fn extract_fields(record: &StringRecord,
+    field_pos: &[Range<usize>]) -> Vec<String> {
+    let mut fields = Vec::<String>::new();
+    for r in field_pos {
+        for i in r.clone().collect::<Vec<_>>() {
+            match record.get(i) {
+                None => (),
+                Some(f) => fields.push(f.to_string()),
+            }        
+        }
+    }
+    fields
+}
+
 
 pub fn get_args() -> MyResult<Config> {
     let matches = App::new("cutr")
@@ -208,7 +224,23 @@ fn parse_pos(range: &str) -> MyResult<PositionList> {
 
 #[cfg(test)]
 mod unit_tests {
-    use super::parse_pos;
+    use super::{extract_bytes, extract_chars, extract_fields, parse_pos};
+    use csv::StringRecord;
+
+
+    #[test]
+    fn test_extract_fields() {
+        let rec = StringRecord::from(vec!["Captain", "Sham", "12345"]);
+        assert_eq!(extract_fields(&rec, &[0..1]), &["Captain"]);
+        assert_eq!(extract_fields(&rec, &[1..2]), &["Sham"]);
+        assert_eq!(
+            extract_fields(&rec, &[0..1, 2..3]),
+            &["Captain", "12345"]
+        );
+        assert_eq!(extract_fields(&rec, &[0..1, 3..4]), &["Captain"]);
+        assert_eq!(extract_fields(&rec, &[1..2, 0..1]), &["Sham", "Captain"]);
+    }
+
 
     #[test]
     fn test_parse_pos() {
