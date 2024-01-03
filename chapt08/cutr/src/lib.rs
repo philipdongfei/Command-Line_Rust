@@ -8,7 +8,7 @@ use std::{
     num::NonZeroUsize,
     ops::Range
 };
-use csv::{ ReaderBuilder, StringRecord };
+use csv::{ ReaderBuilder, StringRecord, WriterBuilder };
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 type PositionList = Vec<Range<usize>>;
@@ -28,7 +28,7 @@ pub struct Config {
     extract: Extract,
 }
 
-fn extract_fields(record: &StringRecord,
+fn my_extract_fields(record: &StringRecord,
     field_pos: &[Range<usize>]) -> Vec<String> {
     let mut fields = Vec::<String>::new();
     for r in field_pos {
@@ -40,6 +40,31 @@ fn extract_fields(record: &StringRecord,
         }
     }
     fields
+}
+
+// book one way
+fn book1_extract_fields(
+    record: &StringRecord,
+    field_pos: &[Range<usize>],
+) -> Vec<String> {
+    field_pos
+        .iter()
+        .cloned()
+        .flat_map(|range| range.filter_map(|i| record.get(i)))
+        .map(String::from) // turn &str values into String values.
+        .collect()
+}
+
+// book two way
+fn extract_fields<'a>(
+    record: &'a StringRecord,
+    field_pos: &[Range<usize>],
+) -> Vec<&'a str> {
+    field_pos
+        .iter()
+        .cloned()
+        .flat_map(|range| range.filter_map(|i| record.get(i)))
+        .collect()
 }
 
 
@@ -378,15 +403,41 @@ pub fn run(config: Config) -> MyResult<()> {
     for filename in &config.files {
         match open(filename) {
             Err(err) => eprintln!("{}: {}", filename, err),
-            Ok(_) => {
-                println!("Opened {}", filename);
-            }
+            Ok(file) => match &config.extract {
+                Fields(field_pos) => {
+                    let mut reader = ReaderBuilder::new()
+                        .delimiter(config.delimiter)
+                        .has_headers(false)
+                        .from_reader(file);
+
+                    let mut wtr = WriterBuilder::new()
+                        .delimiter(config.delimiter)
+                        .from_writer(io::stdout());
+                    for record in reader.records() {
+                        let record = record?;
+                        wtr.write_record(extract_fields(
+                                &record, field_pos,
+                        ))?;
+                    }
+
+                }
+                Bytes(byte_pos) => {
+                    for line in file.lines() {
+                        println!("{}", extract_bytes(&line?, byte_pos));
+                    }
+                }
+                Chars(char_pos) => {
+                    for line in file.lines() {
+                        println!("{}", extract_chars(&line?, char_pos));
+                    }
+                }
+            },
         }
     }
     Ok(())
 }
 
-fn extract_chars(line: &str, char_pos: &[Range<usize>]) -> String {
+fn my_extract_chars(line: &str, char_pos: &[Range<usize>]) -> String {
     let mut exchars = String::new();
     let charline: Vec<_> = line.chars().collect(); 
     for pos in char_pos {
@@ -398,6 +449,45 @@ fn extract_chars(line: &str, char_pos: &[Range<usize>]) -> String {
     }
     exchars
 }
+
+// book
+fn extract_chars(line: &str, char_pos: &[Range<usize>]) -> String {
+    let chars: Vec<_> = line.chars().collect();
+    let mut selected: Vec<char> = vec![];
+
+    for range in char_pos.iter().cloned() {
+        for i in range {
+            // one way
+            if let Some(val) = chars.get(i) {
+                selected.push(*val)
+            }
+            // other way
+            // selected.extend(range.filter_map(|i| chars.get(i)));
+        }
+    }
+    selected.iter().collect()
+
+    // this next version
+    /*
+     * let chars: Vec<_> = line.chars().collect();
+     * char_pos
+     *      .iter()
+     *      .cloned()
+     *      .map(|range| range.filter_map(|i| chars.get(i)))
+     *      .flatten()
+     *      .collect()
+     */
+    // used Iterator::filter_map
+    /*
+     * let chars: Vec<_> = line.chars().collect();
+     * char_pos
+     *      .iter()
+     *      .cloned()
+     *      .flat_map(|range| range.filter_map(|i| chars.get(i)))
+     *      .collect()
+     */
+}
+
 
 #[test]
 fn test_extract_chars() {
@@ -413,7 +503,7 @@ fn test_extract_chars() {
 
 }
 
-fn extract_bytes(line: &str, byte_pos: &[Range<usize>]) -> String {
+fn my_extract_bytes(line: &str, byte_pos: &[Range<usize>]) -> String {
     let byteline = line.as_bytes();
     let mut exbytes = Vec::<_>::new();
     for pos in byte_pos {
@@ -426,6 +516,17 @@ fn extract_bytes(line: &str, byte_pos: &[Range<usize>]) -> String {
     }        
     String::from_utf8_lossy(&exbytes).into_owned()
 
+}
+
+// book
+fn extract_bytes(line: &str, byte_pos: &[Range<usize>]) -> String {
+    let bytes = line.as_bytes();
+    let selected: Vec<_> = byte_pos
+        .iter()
+        .cloned()
+        .flat_map(|range| range.filter_map(|i| bytes.get(i)).copied())
+        .collect();
+    String::from_utf8_lossy(&selected).into_owned()
 }
 
 #[test]
