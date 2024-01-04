@@ -11,7 +11,15 @@ use std::{
 use csv::{ ReaderBuilder, StringRecord, WriterBuilder };
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
-type PositionList = Vec<Range<usize>>;
+//type PositionList = Vec<Range<usize>>;
+
+// Change PositionList to Enum, add RangeTo,RangeFrom type
+#[derive(Debug)]
+pub enum PositionList {
+    RangeToPos(Vec<std::ops::RangeTo<usize>>),
+    RangeFromPos(Vec<std::ops::RangeFrom<usize>>),
+    RangePos(Vec<Range<usize>>),
+}
 
 #[derive(Debug)]
 pub enum Extract {
@@ -193,7 +201,9 @@ fn parse_pos(range: &str) -> MyResult<PositionList> {
         .split(',')
         .into_iter()
         .map(|val| {
-            parse_index(val).map(|n| n..n+1).or_else(|e| {
+            // fix to parse PositionList(rangeto,rangefrom, range)
+            parse_index(val).map(|n| { n..n+1 })
+            .or_else(|e| {
                 range_re.captures(val).ok_or(e).and_then(|captures| {
                     let n1 = parse_index(&captures[1])?;
                     let n2 = parse_index(&captures[2])?;
@@ -209,6 +219,7 @@ fn parse_pos(range: &str) -> MyResult<PositionList> {
                 })
             })
         })
+        // TO DO:  convert to MyResult<PositionList>
         .collect::<Result<_,_>>()
         .map_err(From::from)
 
@@ -415,21 +426,58 @@ pub fn run(config: Config) -> MyResult<()> {
                         .from_writer(io::stdout());
                     for record in reader.records() {
                         let record = record?;
+                        match &field_pos {
+                            PositionList::RangeToPos(field_pos_to) => {
+
+                            },
+                            PositionList::RangeFromPos(field_pos_from) => {
+                            },
+                            PositionList::RangePos(field_pos_pos) => {
+                                wtr.write_record(extract_fields(
+                                        &record, field_pos_pos,
+                                ))?;
+
+                            },
+                        }
+                        /*
                         wtr.write_record(extract_fields(
                                 &record, field_pos,
                         ))?;
+                        */
                     }
 
                 }
                 Bytes(byte_pos) => {
-                    for line in file.lines() {
-                        println!("{}", extract_bytes(&line?, byte_pos));
+                    match &byte_pos {
+                        PositionList::RangePos(range_byte_pos) => {
+                            for line in file.lines() {
+                                println!("{}", extract_bytes(&line?, &range_byte_pos));
+                            }
+
+                        }
+                        _ => (),
                     }
+                    /*
+                    for line in file.lines() {
+                        println!("{}", extract_bytes(&line?, range_byte));
+                    }
+                    */
                 }
                 Chars(char_pos) => {
-                    for line in file.lines() {
-                        println!("{}", extract_chars(&line?, char_pos));
+                    match &char_pos {
+                        PositionList::RangePos(range_char_pos) => {
+                            for line in file.lines() {
+                                println!("{}", extract_chars(&line?, &range_char_pos));
+                            }
+
+                        }
+                        _ => (),
                     }
+                    /*
+                    for line in file.lines() {
+                        println!("{}", extract_chars(&line?, range_char));
+                    }
+                    */
                 }
             },
         }
