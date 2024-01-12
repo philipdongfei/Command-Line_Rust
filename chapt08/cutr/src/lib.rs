@@ -197,12 +197,33 @@ fn parse_int(val: &str) -> MyResult<usize> {
 
 fn parse_pos(range: &str) -> MyResult<PositionList> {
     let range_re = Regex::new(r"^(\d+)-(\d+)$").unwrap();
+    let rangeto_re = Regex::new(r"^-(\d+)$").unwrap();
+    let rangefrom_re = Regex::new(r"^(\d+)-$").unwrap();
     range
         .split(',')
         .into_iter()
         .map(|val| {
             // fix to parse PositionList(rangeto,rangefrom, range)
             parse_index(val).map(|n| { n..n+1 })
+            .or_else(|e| {
+                rangeto_re.captures(val).ok_or(e).and_then(|captures| {
+                    let n = parse_index(&captures[1])?;
+                    if n <= 0 {
+                        return Err(format!("number:{} <= 0",n));
+                    }
+                    Ok(..n)
+                })
+            }) // parse -3 or 5-
+            .or_else(|e| {
+                rangefrom_re.captures(val).ok_or(e).and_then(|captures| {
+                    let n = parse_index(&captures[1])?;
+                    if n < 0 {
+                        return Err(format!("number:{} < 0",n));
+                    }
+                    Ok(n..)
+                })
+
+            })
             .or_else(|e| {
                 range_re.captures(val).ok_or(e).and_then(|captures| {
                     let n1 = parse_index(&captures[1])?;
@@ -221,6 +242,7 @@ fn parse_pos(range: &str) -> MyResult<PositionList> {
         })
         // TO DO:  convert to MyResult<PositionList>
         .collect::<Result<_,_>>()
+        .map(|r| PositionList::RangePos(r))
         .map_err(From::from)
 
     /*
